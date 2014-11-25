@@ -13,6 +13,7 @@ from backtrack_behaviour.msg import BacktrackAction, BacktrackGoal
 from std_srvs.srv import Empty
 from scitos_msgs.srv import EnableMotors
 from strands_navigation_msgs.srv import AskHelp, AskHelpRequest
+from move_base_msgs import MoveBaseAction
 
 
 class ClearCostmaps(smach.State):
@@ -131,6 +132,69 @@ class Backtrack(smach.State):
     
     def service_preempt(self):
         self.backtrack_client.cancel_all_goals()
+        smach.State.service_preempt(self)
+ 
+class Backoff(smach.State):
+    def __init__(self, max_backoff_attempts=4):
+        smach.State.__init__(self,
+                             outcomes=['succeeded', 'failure', 'preempted'],
+                             input_keys=['goal','n_nav_fails'],
+                             output_keys=['goal','n_nav_fails'],
+                             )
+                             
+        self.nav_stat=None
+
+        rospy.set_param('max_backoff_attempts', max_backoff_attempts)   
+        rospy.set_param('backoff_meters_back', backoff_meters_back)
+        self.backoff_client = actionlib.SimpleActionClient('/backoff_behaviour', MoveBaseAction)
+        got_server=self.backoff_client.wait_for_server(rospy.Duration(1))
+        while not got_server:   
+            rospy.loginfo("Backoff recovery state is waiting for backoff action to start...")
+            got_server=self.backoff_client.wait_for_server(rospy.Duration(1))
+            if rospy.is_shutdown():
+                return
+        rospy.loginfo("Backoff recovery state initialized") 
+        
+
+    def execute(self, userdata):
+        
+        max_backoff_attempts=rospy.get_param('max_backoff_attempts',3)     
+        backoff_meters_back=rospy.get_param('backoff_meters_back',0.8)
+        
+        if self.preempt_requested():
+            self.service_preempt()
+            return 'preempted'
+        
+        if userdata.n_nav_fails > max_backoff_attempts:
+            return 'failure'
+            
+        self.nav_stat=MonitoredNavEventClass()
+        self.nav_stat.initialize(recovery_mechanism="nav_backoff")
+            
+        backoff_goal = MoveBaseGoal()
+        self.backoff_client.send_goal(backoff_goal)
+        status = self.backoff_client.get_state()
+        while status == GoalStatus.PENDING or status == GoalStatus.ACTIVE:
+            status = self.backoff_client.get_state()
+            if self.preempt_requested():
+                self.nav_stat.finalize(was_helped=False,n_tries=userdata.n_nav_fails)
+                self.nav_stat.insert()
+                self.service_preempt()
+                return 'preempted'
+            self.backoff_client.wait_for_result(rospy.Duration(0.2))
+        self.nav_stat.finalize(was_helped=False,n_tries=userdata.n_nav_fails)
+        self.nav_stat.insert()
+        if self.preempt_requested():
+            self.nav_stat.finalize(was_helped=False,n_tries=userdata.n_nav_fails)
+            self.nav_stat.insert()
+            self.service_preempt()
+            return 'preempted'
+        if status == GoalStatus.SUCCEEDED:
+            return 'succeeded'
+        return 'failure'
+    
+    def service_preempt(self):
+        self.backoff_client.cancel_all_goals()
         smach.State.service_preempt(self)
         
         
