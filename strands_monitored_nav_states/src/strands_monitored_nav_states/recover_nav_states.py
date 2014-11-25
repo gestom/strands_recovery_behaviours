@@ -9,11 +9,11 @@ from geometry_msgs.msg import Pose, PoseStamped
 import actionlib
 from actionlib_msgs.msg import GoalStatus
 from backtrack_behaviour.msg import BacktrackAction, BacktrackGoal
+from backoff_behaviour.msg import BackoffAction, BackoffGoal
 
 from std_srvs.srv import Empty
 from scitos_msgs.srv import EnableMotors
 from strands_navigation_msgs.srv import AskHelp, AskHelpRequest
-from move_base_msgs import MoveBaseAction
 
 
 class ClearCostmaps(smach.State):

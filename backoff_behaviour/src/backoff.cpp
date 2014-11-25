@@ -3,10 +3,10 @@
 #include <std_msgs/String.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/Twist.h>
-#include <move_base_msgs/MoveBaseAction.h>
+#include <backoff_behaviour/BackoffAction.h>
 #include <actionlib/server/simple_action_server.h>
 
-typedef actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> Server;
+typedef actionlib::SimpleActionServer<backoff_behaviour::BackoffAction> Server;
 ros::Subscriber robot_pose;
 
 Server *server;
@@ -111,16 +111,13 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 	}
 }
 
-void actionServerCallback(const move_base_msgs::MoveBaseGoalConstPtr& goal, Server* as)
+void actionServerCallback(const backoff_behaviour::BackoffGoalConstPtr& goal, Server* as)
 {
-	move_base_msgs::MoveBaseResult result;
-	n->param("/recovery/enable_backoff",enableBackoff,false);
+	backoff_behaviour::BackoffResult result;
+	n->param("/recovery/enable_backoff",enableBackoff,true);
 	if (enableBackoff)
 	{
 		state = BACKOFF;
-		float goalX = goal->target_pose.pose.position.x;
-		float goalY = goal->target_pose.pose.position.y;
-		//if (goalX == 0 && goalY == 0) 
 		while (state == BACKOFF ||state == TURN || state == FINAL)
 		{
 			if (state == FINAL) state = SUCCESS;
