@@ -30,7 +30,7 @@ class RecoverNav(RecoverStateMachine):
                                                 'failure':'BACKOFF',
                                                 'preempted':'preempted'})
             smach.StateMachine.add('BACKOFF',
-                                   self.backtrack,
+                                   self.backoff,
                                    transitions={'succeeded':'recovered_without_help',
                                                 'failure':'NAV_HELP',
                                                 'preempted':'preempted'})
